@@ -153,6 +153,26 @@ async function startup({ id, version, rootURI }) {
     Zotero.Reader.registerEventListener(type, guarded, id);
     listeners.push([type, guarded]);
   }
+  /**
+   * Find the controller whose document lives inside this reader. The reader
+   * hosts the PDF viewer in nested frames whose depth varies by Zotero build
+   * and split-view state, so walk the tree instead of guessing a fixed level.
+   */
+  function findControllerFor(iframeWindow, depth = 0) {
+    if (!iframeWindow || depth > 5) return null;
+    let doc;
+    try { doc = iframeWindow.document; } catch { return null; }
+    if (!doc) return null;
+    const direct = controllers.get(doc);
+    if (direct) return direct;
+    for (const frame of doc.querySelectorAll("iframe:not([data-readerc-owned])")) {
+      let inner;
+      try { inner = frame.contentWindow; } catch { continue; }
+      const found = findControllerFor(inner, depth + 1);
+      if (found) return found;
+    }
+    return null;
+  }
   function makeButton(doc, label, command) {
     const button = doc.createElement("button");
     button.textContent = label;
@@ -184,15 +204,16 @@ async function startup({ id, version, rootURI }) {
       try {
         await host.setState(text, "unknown");
         scan();
-        for (const [frameDoc, controller] of controllers) {
-          let belongs = false;
-          try { belongs = frameDoc.defaultView.parent === reader._iframeWindow || frameDoc.defaultView.parent.parent === reader._iframeWindow; } catch { /* Closed. */ }
-          if (!belongs) continue;
+        // Redraw immediately rather than waiting for the debounce, so the
+        // dotted underline is already there when the popup closes.
+        const controller = findControllerFor(reader._iframeWindow);
+        if (controller) {
+          controller.reindex();
           // The controller uses the exact selection offsets, not the first
           // occurrence of this spelling on an arbitrary visible page.
           controller.showSelection(text);
-          break;
         }
+        else Zotero.debug("ReaderC: no controller for this reader; marker added only");
       } catch (error) { Zotero.logError(error); }
     }));
   });

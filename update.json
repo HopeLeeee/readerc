@@ -3,9 +3,9 @@
     "readerc@readerc.local": {
       "updates": [
         {
-          "version": "0.2.0",
-          "update_link": "https://github.com/HopeLeeee/readerc/releases/download/v0.2.0/readerc-0.2.0-zotero9.xpi",
-          "update_hash": "sha512:Mn09HNvYfc69ghMeVPQIQuecgAnD/T0urOzZIcZS1zpycSnnIVJ8eH0EGKZxU97BGxyWgWQ6YSLDOHAXaa9YoQ==",
+          "version": "0.2.1",
+          "update_link": "https://github.com/HopeLeeee/readerc/releases/download/v0.2.1/readerc-0.2.1-zotero9.xpi",
+          "update_hash": "sha512:r1BNmx3y82YfVkuhINGDw3vAyjXW+hPUtikyHG5GLeMs+LaK5OngtUXIb2pV3C2bhfCcAem1BoouO27gNvi20w==",
           "applications": {
             "zotero": {
               "strict_min_version": "9.0",

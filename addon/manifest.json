@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "ReaderC · 英文阅读伴侣",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "英文 PDF 生词悬浮中文释义，Delete 标记熟词，支持上下文选义。",
   "author": "ReaderC contributors",
   "icons": { "48": "icons/readerc.svg", "96": "icons/readerc.svg" },

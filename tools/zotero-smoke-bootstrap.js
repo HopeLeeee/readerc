@@ -264,6 +264,200 @@ async function startup({ rootURI }) {
       } catch (e) { directError = String(e) + ' | ' + (e && e.stack); }
       return { stateBefore, handlerRan, results, directResult, directError };
     },
+    async selectionPopupProbe() {
+      // Capture what renderTextSelectionPopup actually delivers in Zotero 9:
+      // field names decide whether the button is even created.
+      const captured = [];
+      const handlers = (Zotero.Reader._registeredListeners || []).filter(l => l.type === 'renderTextSelectionPopup');
+      // Simulate the reader emitting the event with a realistic payload.
+      const reader = Zotero.Reader._readers[0];
+      const doc = reader._iframeWindow.document;
+      const sample = { annotation: { text: 'treatment' } };
+      for (const h of handlers) {
+        try {
+          h.handler({ reader, doc, params: sample, append: (...els) => captured.push(els.map(e => e.textContent || e.tagName)) });
+        } catch (e) { captured.push(['ERROR: ' + e.message]); }
+      }
+      // Also report the real listener registry shape.
+      return {
+        handlerCount: handlers.length,
+        registeredTypes: [...new Set((Zotero.Reader._registeredListeners || []).map(l => l.type))],
+        appended: captured,
+        pluginIDs: handlers.map(h => h.pluginID),
+      };
+    },
+    async buttonFlowProbe(command) {
+      // Run the exact sequence the toolbar button performs, then report
+      // whether a marker appeared for the selected word.
+      const readerDoc = (() => { for (const r of Zotero.Reader._readers) { try { return r._iframeWindow.document; } catch {} } })();
+      const top = (() => { for (const r of Zotero.Reader._readers) { try { return r._iframeWindow; } catch {} } })();
+      let doc = null, controller = null;
+      const visit = (d, depth) => {
+        if (!d || depth > 5 || doc) return;
+        const c = Zotero.ReaderC.__testController(d);
+        if (c) { doc = d; controller = c; return; }
+        for (const f of d.querySelectorAll ? d.querySelectorAll('iframe') : []) {
+          try { visit(f.contentDocument, depth + 1); } catch {}
+        }
+      };
+      visit(readerDoc, 0);
+      if (!doc) throw new Error('No controller document');
+
+      const word = command.word;
+      const win = doc.defaultView;
+      const layer = doc.querySelector('.textLayer');
+      const walker = doc.createTreeWalker(layer, 4);
+      let node = null;
+      while ((node = walker.nextNode())) if (node.nodeValue.includes(word)) break;
+      if (!node) throw new Error('Target word missing: ' + word);
+      const start = node.nodeValue.indexOf(word);
+      const range = doc.createRange(); range.setStart(node, start); range.setEnd(node, start + word.length);
+      const sel = win.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+
+      const count = () => doc.querySelectorAll('[data-readerc-owned="markers"] span').length;
+      const before = count();
+      const vocabBefore = Object.keys(Zotero.ReaderC.host.getVocabulary());
+
+      // Exactly what bootstrap.js does, in order.
+      await Zotero.ReaderC.host.setState(word, 'unknown');
+      const vocabAfterSet = Object.keys(Zotero.ReaderC.host.getVocabulary());
+      const countAfterScanCall = (() => {
+        // scan() is schedule-based; the real code calls it then showSelection.
+        return null;
+      })();
+      const timeline = [];
+      controller.showSelection(word);
+      const popupShown = !!doc.querySelector('[data-readerc-owned="popover"]');
+      for (const ms of [0, 60, 150, 300, 600, 1200]) {
+        if (ms > 0) await Zotero.Promise.delay(ms === 60 ? 60 : 90);
+        timeline.push({ t: ms, markers: count() });
+      }
+      const after = count();
+      const drawn = [];
+      for (const st of controller.pages.values()) for (const h of st.hits) drawn.push(h.word.word);
+      return {
+        word, before, after, popupShown,
+        vocabBefore, vocabAfterSet,
+        drawn,
+        markerAppeared: after > before,
+        timeline,
+        wordDrawn: drawn.map(w => w.toLowerCase()).includes(word.toLowerCase()),
+      };
+    },
+    async frameDepthProbe() {
+      // Determine how deep the text-layer document sits inside the reader
+      // iframe, because bootstrap.js matches it with a fixed two-level check.
+      const out = [];
+      for (const reader of Zotero.Reader._readers) {
+        let doc;
+        try { doc = reader._iframeWindow.document; } catch { continue; }
+        const visit = (d, depth) => {
+          if (!d || depth > 5) return;
+          if (d.querySelector && d.querySelector('.textLayer')) {
+            const win = d.defaultView;
+            let chain = [];
+            let w = win;
+            for (let i = 0; i < 5 && w; i++) {
+              chain.push(w === reader._iframeWindow ? 'IFRAME_WINDOW' : (w === Zotero.getMainWindow() ? 'MAIN' : 'frame'));
+              try { w = w.parent; } catch { break; }
+            }
+            out.push({ depth, hasTextLayer: true, topLevel: d === doc, chain });
+          }
+          for (const f of d.querySelectorAll ? d.querySelectorAll('iframe') : []) {
+            try { visit(f.contentDocument, depth + 1); } catch {}
+          }
+        };
+        visit(doc, 0);
+      }
+      // Reproduce bootstrap.js's belongs check verbatim.
+      const belongsResults = [];
+      for (const reader of Zotero.Reader._readers) {
+        let top;
+        try { top = reader._iframeWindow; } catch { continue; }
+        const visit = (d, depth) => {
+          if (!d || depth > 5) return;
+          const c = Zotero.ReaderC.__testController(d);
+          if (c) {
+            let a = false, b2 = false, err = null;
+            try { a = d.defaultView.parent === top; } catch (e) { err = String(e); }
+            try { b2 = d.defaultView.parent.parent === top; } catch (e) { err = (err || '') + String(e); }
+            belongsResults.push({ depth, parentIsTop: a, grandparentIsTop: b2, quoted: d.defaultView.parent === top || d.defaultView.parent.parent === top, err });
+          }
+          for (const f of d.querySelectorAll ? d.querySelectorAll('iframe') : []) {
+            try { visit(f.contentDocument, depth + 1); } catch {}
+          }
+        };
+        visit(top.document, 0);
+      }
+      // Which document do the controllers actually key on?
+      const controllerKeys = [];
+      for (const r of Zotero.Reader._readers) {
+        try {
+          const visit = (d, depth) => {
+            if (!d || depth > 5) return;
+            const c = Zotero.ReaderC.__testController(d);
+            if (c) controllerKeys.push({ depth, isTop: d === r._iframeWindow.document });
+            for (const f of d.querySelectorAll ? d.querySelectorAll('iframe') : []) {
+              try { visit(f.contentDocument, depth + 1); } catch {}
+            }
+          };
+          visit(r._iframeWindow.document, 0);
+        } catch {}
+      }
+      return { frames: out, controllerKeys, belongsResults };
+    },
+    async selectionProbe(command) {
+      // Reproduce the user's flow: select a word in the text layer, run the
+      // "add word" action, then check whether a dotted marker appeared.
+      const doc = documents()[0];
+      const win = doc.defaultView;
+      const layer = doc.querySelector('.textLayer');
+      const word = command.word;
+      const walker = doc.createTreeWalker(layer, 4);
+      let node = null;
+      while ((node = walker.nextNode())) if (node.nodeValue.includes(word)) break;
+      if (!node) throw new Error('Target word missing: ' + word);
+      const start = node.nodeValue.indexOf(word);
+      const range = doc.createRange();
+      range.setStart(node, start);
+      range.setEnd(node, start + word.length);
+      const sel = win.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      const controller = Zotero.ReaderC.__testController(doc);
+      const before = {
+        markers: doc.querySelectorAll('[data-readerc-owned="markers"] span').length,
+        vocab: Zotero.ReaderC.host.getVocabulary()[word]?.state || null,
+      };
+      // This is what the toolbar button does.
+      await Zotero.ReaderC.host.setState(word, 'unknown');
+      // host.setState stores under the canonical lemma, not the raw surface form.
+      const key = word.toLowerCase();
+      const vocabAfterSetState = Zotero.ReaderC.host.getVocabulary()[key]?.state || null;
+      const allVocab = Object.keys(Zotero.ReaderC.host.getVocabulary());
+      // Re-index happens on a debounce; give it room.
+      await Zotero.Promise.delay(1200);
+      const afterScan = doc.querySelectorAll('[data-readerc-owned="markers"] span').length;
+      controller.reindex();
+      await Zotero.Promise.delay(400);
+      const afterExplicitReindex = doc.querySelectorAll('[data-readerc-owned="markers"] span').length;
+      const eligible = [];
+      for (const st of controller.pages.values()) for (const h of st.hits) eligible.push(h.word.lemma);
+      // Is this word among the drawn markers?
+      const drawnWords = [];
+      for (const st of controller.pages.values()) for (const h of st.hits) drawnWords.push(h.word.word);
+      return {
+        word,
+        before,
+        vocabAfterSetState,
+        afterScan,
+        afterExplicitReindex,
+        eligibleLemmas: eligible.slice(0, 20),
+        drawnWords: drawnWords.slice(0, 20),
+        wordDrawn: drawnWords.includes(word),
+        allVocabKeys: allVocab,
+      };
+    },
     async keyMark(command) {
       // Press an arbitrary key while a gloss is showing and report the result.
       const doc = documents()[0];
