@@ -45,14 +45,15 @@ def main():
     if not asset.is_file():
         raise SystemExit(f"Build the XPI first: python tools/build.py ({asset.name} missing)")
 
-    # Default to the raw repository path: it always resolves, whereas a release
-    # asset only exists once that release has been published. --release switches
-    # to the release asset, which is what GitHub-hosted plugins usually ship.
+    # Use the github.com "raw" path rather than raw.githubusercontent.com.
+    # The latter is blocked or unreliable on some networks (notably mainland
+    # China), which would silently break updates; github.com itself stays
+    # reachable. --release switches to a release asset instead.
     tag = f"v{version}"
     if args.release:
         update_link = f"https://github.com/{REPO}/releases/download/{tag}/{asset.name}"
     else:
-        update_link = f"https://raw.githubusercontent.com/{REPO}/main/dist/{asset.name}"
+        update_link = f"https://github.com/{REPO}/raw/main/dist/{asset.name}"
 
     document = {
         "addons": {
