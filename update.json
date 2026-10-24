@@ -1,0 +1,19 @@
+{
+  "addons": {
+    "readerc@readerc.local": {
+      "updates": [
+        {
+          "version": "0.2.0",
+          "update_link": "https://raw.githubusercontent.com/HopeLeeee/readerc/main/dist/readerc-0.2.0-zotero9.xpi",
+          "update_hash": "sha512:pEOMwNc4ez0PAnVJqkL/Fzu3dEYyxkR6VO9bEG/cXkdCZRunWV1mGty+sya1qlcrmv/rsnJwAbZKdZmrLs95lQ==",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "9.0",
+              "strict_max_version": "9.0.*"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
