@@ -45,15 +45,12 @@ def main():
     if not asset.is_file():
         raise SystemExit(f"Build the XPI first: python tools/build.py ({asset.name} missing)")
 
-    # Use the github.com "raw" path rather than raw.githubusercontent.com.
-    # The latter is blocked or unreliable on some networks (notably mainland
-    # China), which would silently break updates; github.com itself stays
-    # reachable. --release switches to a release asset instead.
+    # Point at the release asset. Repository "raw" URLs are served through a
+    # CDN that caches aggressively: right after a release the updater can fetch
+    # the previous build and fail its hash check. Release assets have no such
+    # staleness and are what Zotero's other plugins publish.
     tag = f"v{version}"
-    if args.release:
-        update_link = f"https://github.com/{REPO}/releases/download/{tag}/{asset.name}"
-    else:
-        update_link = f"https://github.com/{REPO}/raw/main/dist/{asset.name}"
+    update_link = f"https://github.com/{REPO}/releases/download/{tag}/{asset.name}"
 
     document = {
         "addons": {
