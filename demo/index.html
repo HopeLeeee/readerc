@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>ReaderC · 英文阅读伴侣</title>
+  <link rel="stylesheet" href="/demo/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand"><span class="brand-mark">R<span>c</span></span><div><strong>ReaderC</strong><small>让理解，留在英文里。</small></div></div>
+    <nav><span class="demo-label">界面演示 · 预设释义，非大模型</span><button id="toggle" type="button">词释 ON</button><button id="settings" type="button">阅读设置</button></nav>
+  </header>
+  <main>
+    <aside class="guide">
+      <div class="eyebrow">READ WITH A LITTLE HELP</div>
+      <h1>专注原文。<br><span>释义，按需出现。</span></h1>
+      <p>把鼠标停在绿色虚线下的单词上，<br>中文会在需要时出现。</p>
+      <div class="step"><span>01</span><div><strong>悬浮，看释义</strong><p>保留英文的阅读节奏。</p></div></div>
+      <div class="step"><span>02</span><div><strong>认识，就告诉它</strong><p>点击卡片后按 <kbd>Delete</kbd>，<br>以后不再提示这个词。</p></div></div>
+      <div class="step"><span>03</span><div><strong>你的词表，会留下来</strong><p>误操作可以撤销，<br>也能在设置里恢复。</p></div></div>
+      <p class="footnote">此页使用预设短释义演示极简界面。<br>实际插件只调用你配置的大模型进行上下文选义。</p>
+      <div id="demo-status" role="status">正在加载词频数据……</div>
+    </aside>
+    <section class="reader-shell" aria-label="英文阅读示例">
+      <div class="reader-toolbar"><span>research-notes.pdf</span><span>1 / 1 <span class="divider">│</span> 100%</span></div>
+      <div id="viewerContainer"><div id="viewer" class="pdfViewer">
+        <article class="page" data-page-number="1">
+          <div class="textLayer">
+            <div class="journal"><span>RESEARCH NOTES</span><span>EXPERIMENTAL MEDICINE · 2026</span></div>
+            <h2>Understanding the mechanisms<br>of inflammatory responses</h2>
+            <div class="byline">An illustrative reading sample</div>
+            <h3>Abstract</h3>
+            <p>The treatment attenuated the inflammatory response and enhanced cellular resilience. These findings suggest a plausible mechanism for mitigating tissue damage under adverse conditions.</p>
+            <div class="columns">
+              <section>
+                <h3>1. Background</h3>
+                <p>Chronic inflammation is associated with a heterogeneous range of disorders. Elucidating the underlying mechanisms remains a substantial challenge, particularly when experimental observations appear contradictory.</p>
+                <p>Conventional approaches often overlook subtle interactions between molecular pathways. A comprehensive framework should account for both temporal fluctuations and spatial variability.</p>
+                <p>The researchers investigated whether the compound could mitigate oxidative stress in vitro. Preliminary observations indicated a pronounced reduction in cellular damage.</p>
+              </section>
+              <section>
+                <h3>2. Observations</h3>
+                <p>The experimental cohort exhibited a transient improvement in metabolic activity. However, the magnitude of this effect varied considerably across individual specimens.</p>
+                <p>These observations underscore the importance of rigorous validation. Although the results are encouraging, the available evidence is insufficient to establish a causal relationship.</p>
+                <p>Further investigation is warranted to ascertain whether the observed benefits persist in vivo. Such work may facilitate the development of more effective therapeutic strategies.</p>
+              </section>
+            </div>
+            <div class="paper-footer">READERC READING SAMPLE <span>01</span></div>
+          </div>
+        </article>
+      </div></div>
+    </section>
+  </main>
+  <dialog id="settings-dialog"><button id="close-settings" type="button" aria-label="关闭设置">×</button><div id="readerc-settings-root"></div></dialog>
+  <script src="/addon/src/core.js"></script>
+  <script src="/addon/src/store.js"></script>
+  <script src="/addon/src/service.js"></script>
+  <script src="/addon/src/reader.js"></script>
+  <script src="/addon/src/settings.js"></script>
+  <script src="/demo/demo.js"></script>
+</body>
+</html>
