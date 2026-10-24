@@ -6,4 +6,4 @@ node_modules/
 # 保留构建好的 xpi，便于直接下载安装；不提交本地备份
 dist/*.bak
 *.before-perf-tune
-`n__pycache__/
+__pycache__/
