@@ -33,7 +33,7 @@ prefs = {
 (PROFILE / "user.js").write_text("\n".join(f"user_pref({json.dumps(k)}, {json.dumps(v)});" for k, v in prefs.items()) + "\n", encoding="utf-8")
 
 # Minimal text PDF, generated locally. No real library attachments are accessed.
-content = b"BT /F1 16 Tf 60 740 Td (ReaderC native installation test) Tj 0 -50 Td /F1 13 Tf (The treatment attenuated the inflammatory response.) Tj 0 -28 Td (These findings elucidate a plausible mechanism.) Tj ET"
+content = b"BT /F1 16 Tf 60 740 Td (ReaderC native installation test) Tj 0 -50 Td /F1 13 Tf (The treatment attenuated the inflammatory response.) Tj 0 -28 Td (These findings elucidate a plausible mechanism.) Tj 0 -28 Td (The treatment improved the response to treatment.) Tj ET"
 objects = [b"<< /Type /Catalog /Pages 2 0 R >>", b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>", b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>", b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>", b"<< /Length " + str(len(content)).encode() + b" >>\nstream\n" + content + b"\nendstream"]
 pdf = bytearray(b"%PDF-1.4\n")
 offsets = [0]

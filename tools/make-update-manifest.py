@@ -10,11 +10,11 @@ Usage:
     python tools/make-update-manifest.py --release      # also create a GitHub release
 """
 import argparse
-import base64
 import hashlib
 import json
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -26,10 +26,9 @@ REPO = "HopeLeeee/readerc"
 ASSET_NAME = "readerc-{version}-zotero9.xpi"
 
 
-def sha512_b64(path):
-    """Zotero expects 'sha512:<base64>', matching Firefox's update_hash."""
-    digest = hashlib.sha512(path.read_bytes()).digest()
-    return "sha512:" + base64.b64encode(digest).decode("ascii")
+def sha512_hash(path):
+    """Firefox/Zotero update_hash uses a hexadecimal digest, not Base64."""
+    return "sha512:" + hashlib.sha512(path.read_bytes()).hexdigest()
 
 
 def main():
@@ -44,6 +43,10 @@ def main():
     asset = DIST / ASSET_NAME.format(version=version)
     if not asset.is_file():
         raise SystemExit(f"Build the XPI first: python tools/build.py ({asset.name} missing)")
+    with zipfile.ZipFile(asset) as archive:
+        files = {p.relative_to(SOURCE).as_posix(): p for p in SOURCE.rglob("*") if p.is_file()}
+        if set(archive.namelist()) != set(files) or any(archive.read(name) != path.read_bytes() for name, path in files.items()):
+            raise SystemExit("XPI differs from source; rebuild before publishing the update manifest")
 
     # Point at the release asset. Repository "raw" URLs are served through a
     # CDN that caches aggressively: right after a release the updater can fetch
@@ -59,7 +62,7 @@ def main():
                     {
                         "version": version,
                         "update_link": update_link,
-                        "update_hash": sha512_b64(asset),
+                        "update_hash": sha512_hash(asset),
                         "applications": {
                             "zotero": {
                                 "strict_min_version": zotero["strict_min_version"],
@@ -93,6 +96,9 @@ def main():
                 "--notes", f"ReaderC {version}。安装包见下方 Assets。",
             ], check=True)
         print(f"Release {tag} ready")
+        # Publish discovery only after the versioned package is available.
+        subprocess.run(["gh", "release", "upload", "release", str(TARGET), "--clobber", "--repo", REPO], check=True)
+        print("Published stable update manifest")
 
 
 if __name__ == "__main__":

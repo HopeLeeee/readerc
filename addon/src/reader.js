@@ -235,7 +235,7 @@ var ReaderCReader = (() => {
       this.translated = false;
       card.addEventListener("pointerdown", () => card.focus({ preventScroll: true }));
       cardDoc.addEventListener("keydown", event => {
-        if (translated && event.key === "Delete" && !event.ctrlKey && !event.altKey && !event.metaKey) {
+        if (this.translated && (event.key === "Delete" || event.key === "Backspace") && !event.ctrlKey && !event.altKey && !event.metaKey) {
           event.preventDefault(); event.stopImmediatePropagation(); this.markKnown(hit.word);
         } else if (event.key === "Escape") { event.preventDefault(); this.close(); }
       }, true);

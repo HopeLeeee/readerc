@@ -88,6 +88,7 @@ var ReaderCCore = (() => {
   }
   function candidates(text, lexicon, vocabulary, options = {}) {
     const settings = config(options), tokens = tokenize(text), output = [], seen = new Set();
+    let automaticCount = 0;
     const phraseKeys = new Set([...Object.keys(PHRASES), ...Object.keys(vocabulary).filter(x => x.includes(" "))]);
     if (!settings.enabled) return output;
     for (let i = 0; i < tokens.length; i++) {
@@ -99,6 +100,8 @@ var ReaderCCore = (() => {
         const lemmaKey = slice.map(x => entryFor(x.normalized, lexicon).lemma).join(" ");
         const key = phraseKeys.has(surfaceKey) ? surfaceKey : lemmaKey;
         const source = text.slice(token.start, slice.at(-1).end);
+        // An automatic phrase must not consume an explicitly marked word.
+        if (vocabulary[key]?.state !== "unknown" && slice.some(x => vocabulary[entryFor(x.normalized, lexicon).lemma]?.state === "unknown")) continue;
         if (phraseKeys.has(key) && /^[-\sA-Za-z’']+$/.test(source) && !/\n\s*\n/.test(source)) {
           phrase = { word: text.slice(token.start, slice.at(-1).end), normalized: key, start: token.start, end: slice.at(-1).end, count };
           break;
@@ -120,12 +123,13 @@ var ReaderCCore = (() => {
       // Prepositions are never glossed on their own, even after manual marking.
       if (!phrase && PREPOSITIONS.has(current.normalized)) eligible = false;
       if (personal?.state === "known") eligible = false;
-      if (eligible && (!settings.firstOnly || !seen.has(lemma))) {
+      const manual = personal?.state === "unknown";
+      if (eligible && (manual || (automaticCount < settings.maxPerPage && (!settings.firstOnly || !seen.has(lemma))))) {
         output.push({ ...current, lemma, entry: entry || direct || null, ...sentenceAt(text, current.start, current.end) });
         seen.add(lemma);
+        if (!manual) automaticCount++;
       }
       if (phrase) i += phrase.count - 1;
-      if (output.length >= settings.maxPerPage) break;
     }
     return output;
   }

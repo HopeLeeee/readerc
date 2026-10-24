@@ -313,7 +313,7 @@ Zotero 读取 XPI 内 `applications.zotero.update_url` 指向的 JSON，与已�
       "updates": [{
         "version": "0.2.0",
         "update_link": "https://github.com/.../readerc-0.2.0-zotero9.xpi",
-        "update_hash": "sha512:<base64>",
+        "update_hash": "sha512:<128 位十六进制摘要>",
         "applications": { "zotero": { "strict_min_version": "9.0", "strict_max_version": "9.0.*" } }
       }]
     }
@@ -331,7 +331,7 @@ Zotero 读取 XPI 内 `applications.zotero.update_url` 指向的 JSON，与已�
 ```powershell
 python tools/build.py                 # 构建 XPI
 python tools/make-update-manifest.py  # 生成 update.json（含 sha512）
-python tools/make-update-manifest.py --release   # 同时创建 GitHub release 并上传
+python tools/make-update-manifest.py --release   # 上传 XPI 后自动发布固定 release 标签的更新清单
 ```
 
 发布顺序必须是 **构建 → 生成清单 → 上传 XPI → 上传 update.json**。

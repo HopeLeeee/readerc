@@ -39,7 +39,30 @@ async function startup({ rootURI }) {
       if (!addon?.isActive || !started) throw new Error(`Plugin did not activate: appDisabled=${addon?.appDisabled}, userDisabled=${addon?.userDisabled}`);
       return { version: addon?.version, isActive: addon?.isActive, appDisabled: addon?.appDisabled, userDisabled: addon?.userDisabled, started, errors: errors() };
     },
+    async updateCheck(command) {
+      const addon = await AddonManager.getAddonByID('readerc@readerc.local');
+      const from = addon.version;
+      const result = await new Promise((resolve, reject) => {
+        let available = false;
+        addon.findUpdates({
+          onUpdateAvailable(_addon, install) {
+            available = true;
+            install.addListener({
+              onDownloadFailed(i) { reject(new Error('Update download failed: ' + i.error)); },
+              onInstallFailed(i) { reject(new Error('Update install failed: ' + i.error)); },
+              onInstallEnded(_install, upgraded) { resolve({ from, to: upgraded.version, active: upgraded.isActive }); }
+            });
+            install.install().catch(reject);
+          },
+          onNoUpdateAvailable() { reject(new Error('No update available for ' + from)); },
+          onUpdateFinished(_addon, error) { if (error && !available) reject(new Error('Update check failed: ' + error)); }
+        }, AddonManager.UPDATE_WHEN_USER_REQUESTED);
+      });
+      await wait(() => Zotero.ReaderC?.version === result.to, 'updated plugin startup');
+      return { ...result, running: Zotero.ReaderC.version, errors: errors() };
+    },
     async openPdf() {
+      for (const reader of [...Zotero.Reader._readers]) await reader.close();
       const item = await Zotero.Attachments.importFromFile({ file: config.pdf });
       const reader = await Zotero.Reader.open(item.id);
       await wait(() => documents().some(doc => doc.querySelector('[data-readerc-owned="markers"] span')), "PDF text layer and ReaderC markers");
@@ -314,19 +337,28 @@ async function startup({ rootURI }) {
       const range = doc.createRange(); range.setStart(node, start); range.setEnd(node, start + word.length);
       const sel = win.getSelection(); sel.removeAllRanges(); sel.addRange(range);
 
+      await Zotero.ReaderC.host.setState(word, 'known');
+      controller.close();
+      controller.reindex();
       const count = () => doc.querySelectorAll('[data-readerc-owned="markers"] span').length;
       const before = count();
       const vocabBefore = Object.keys(Zotero.ReaderC.host.getVocabulary());
 
-      // Exactly what bootstrap.js does, in order.
-      await Zotero.ReaderC.host.setState(word, 'unknown');
+      // Exercise the registered selection-popup handler and its actual button.
+      const reader = Zotero.Reader._readers.find(r => r._iframeWindow === top);
+      const appended = [];
+      for (const listener of Zotero.Reader._registeredListeners || []) {
+        if (listener.type === 'renderTextSelectionPopup' && listener.pluginID === 'readerc@readerc.local') {
+          listener.handler({ reader, doc: readerDoc, params: { annotation: { text: word } }, append: (...elements) => appended.push(...elements) });
+        }
+      }
+      const button = appended.find(e => e.textContent.includes('标生词'));
+      if (!button) throw new Error('Actual mark button was not appended');
+      button.click();
+      await wait(() => Zotero.ReaderC.host.getVocabulary()[controller.core.canonical(word, controller.lexicon)]?.state === 'unknown', 'button persisted unknown');
+      await Zotero.Promise.delay(400);
       const vocabAfterSet = Object.keys(Zotero.ReaderC.host.getVocabulary());
-      const countAfterScanCall = (() => {
-        // scan() is schedule-based; the real code calls it then showSelection.
-        return null;
-      })();
       const timeline = [];
-      controller.showSelection(word);
       const popupShown = !!doc.querySelector('[data-readerc-owned="popover"]');
       for (const ms of [0, 60, 150, 300, 600, 1200]) {
         if (ms > 0) await Zotero.Promise.delay(ms === 60 ? 60 : 90);
@@ -335,7 +367,14 @@ async function startup({ rootURI }) {
       const after = count();
       const drawn = [];
       for (const st of controller.pages.values()) for (const h of st.hits) drawn.push(h.word.word);
+      if (after <= before) throw new Error('Actual button did not add an underline');
+      const beforeReindex = drawn.filter(w => w.toLowerCase() === word.toLowerCase()).length;
+      controller.close();
+      controller.reindex();
+      const persistentCount = [...controller.pages.values()].flatMap(s => s.hits).filter(h => h.word.word.toLowerCase() === word.toLowerCase()).length;
+      if (!persistentCount || persistentCount !== beforeReindex) throw new Error('Manual underline did not survive reindex');
       return {
+        persistentCount, actualButtonClicked: true,
         word, before, after, popupShown,
         vocabBefore, vocabAfterSet,
         drawn,

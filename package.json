@@ -1,6 +1,6 @@
 {
   "name": "readerc",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "description": "Contextual Chinese vocabulary glosses for Zotero 9",
   "scripts": {

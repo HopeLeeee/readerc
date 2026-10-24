@@ -43,6 +43,16 @@ test('repetition and page budget are independent settings', () => {
   assert.equal(core.candidates('mitigate '.repeat(100), lexicon, {}, { firstOnly: false, maxPerPage: 10 }).length, 10);
   assert.deepEqual(pick('mitigate', {}, { enabled: false }), []);
 });
+
+test('manual unknown marks survive repetition and the automatic page budget', () => {
+  const text = 'mitigate '.repeat(12) + 'treatment treatment';
+  assert.deepEqual(pick(text, { treatment: { state: 'unknown' } }, { maxPerPage: 10, firstOnly: false }), [...Array(10).fill('mitigate'), 'treatment', 'treatment']);
+  assert.deepEqual(pick('treatment treatment', { treatment: { state: 'unknown' } }), ['treatment', 'treatment']);
+});
+
+test('manual single words are not swallowed by automatic phrases', () => {
+  assert.deepEqual(pick('accounted for', { account: { state: 'unknown' } }), ['account']);
+});
 test('PDF line-end hyphenation restores the word and context target offsets', () => {
   const text = 'An earlier sentence. The treatment attenu-\nated the response. Another sentence.';
   const result = core.candidates(text, lexicon, {})[0];
