@@ -298,3 +298,56 @@ if (!MARK_KEYS.has(event.key) || event.ctrlKey || event.altKey || event.metaKey)
 
 原生实测三种方式均返回 `state: "known"`，且侧键的 `defaultPrevented` 为 `true`，
 确认历史导航被正确阻止。
+
+## 自动更新
+
+### 机制
+
+Zotero 读取 XPI 内 `applications.zotero.update_url` 指向的 JSON，与已安装版本比较后决定是否升级。
+格式（与 Firefox 一致）：
+
+```json
+{
+  "addons": {
+    "readerc@readerc.local": {
+      "updates": [{
+        "version": "0.2.0",
+        "update_link": "https://github.com/.../readerc-0.2.0-zotero9.xpi",
+        "update_hash": "sha512:<base64>",
+        "applications": { "zotero": { "strict_min_version": "9.0", "strict_max_version": "9.0.*" } }
+      }]
+    }
+  }
+}
+```
+
+`update_hash` 必须与 `update_link` 下载到的字节完全一致，否则 Zotero 拒绝安装。
+因此版本号、链接、哈希三者必须同时更新。
+
+### 生成方式
+
+`tools/make-update-manifest.py` 从已构建的 XPI 反推全部字段，避免手工填写走样：
+
+```powershell
+python tools/build.py                 # 构建 XPI
+python tools/make-update-manifest.py  # 生成 update.json（含 sha512）
+python tools/make-update-manifest.py --release   # 同时创建 GitHub release 并上传
+```
+
+发布顺序必须是 **构建 → 生成清单 → 上传 XPI → 上传 update.json**。
+先传清单后传 XPI 会让用户拿到哈希不匹配的更新。
+
+### 为什么用 Release 而不是仓库 raw 地址
+
+仓库 `raw` 地址（`raw.githubusercontent.com` 与 `github.com/.../raw/...`）都经过 CDN 缓存。
+实测发版后立即拉取，仍会返回上一版文件（相差数分钟到更久），
+导致 Zotero 下载到的 XPI 与 `update_hash` 不匹配而拒绝更新。
+
+Release 资产没有这个问题，实测上传后立即可取且哈希一致。
+`update_url` 本身托管在固定的 `release` 标签下，指向始终最新。
+
+### 已安装记录会缓存 update_url
+
+`extensions.json` 中保存着安装当时的 `updateURL`。
+仅替换 profile 里的 XPI **不会**刷新它，Zotero 仍会去请求旧地址。
+更改更新地址后必须重新安装插件（工具 → 插件 → 齿轮 → Install Add-on From File…）。

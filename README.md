@@ -59,6 +59,24 @@
 
 设置中的“备份与导入词表”可生成 JSON 并复制保存，或粘贴 JSON 合并导入；不导出 Key 和接口配置。词元状态目前跨论文共用，不自动同步到其他设备。
 
+## 自动更新
+
+插件内置自动更新：Zotero 会定期读取仓库 `release` 标签下的 [`update.json`](update.json)，
+发现更高版本时提示升级，无需手动下载。
+
+发布新版本的流程：
+
+```powershell
+# 1. 修改 addon/manifest.json 的 version
+# 2. 构建并生成更新清单
+python tools/build.py
+python tools/make-update-manifest.py --release
+# 3. 上传清单（清单里的哈希对应刚构建的 XPI）
+gh release upload release update.json --clobber
+```
+
+`update_hash` 必须与上传的 XPI 完全对应，所以务必先传 XPI 再传清单。
+
 ## 本地开发与预览
 
 仅需 Node.js 和 Python，核心代码无第三方 JavaScript 运行时依赖。
